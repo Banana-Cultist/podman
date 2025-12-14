@@ -205,6 +205,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := specgenutil.FillOutSpecGen(s, &cliVals, args); err != nil {
 		return err
 	}
+	common.WarnIfMachineVolumesUnavailable(cliVals.Volume)
 	s.RawImageName = rawImageName
 
 	// Include the command used to create the container.
