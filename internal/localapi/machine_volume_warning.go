@@ -1,6 +1,6 @@
 //go:build amd64 || arm64
 
-package common
+package localapi
 
 import (
 	"net/url"
@@ -8,8 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/containers/podman/v6/cmd/podman/registry"
-	"github.com/containers/podman/v6/internal/localapi"
 	"github.com/containers/podman/v6/pkg/machine/define"
 	"github.com/containers/podman/v6/pkg/machine/vmconfigs"
 	"github.com/containers/podman/v6/pkg/specgen"
@@ -20,18 +18,8 @@ const machineVolumesDocURL = "https://docs.podman.io/en/latest/markdown/podman-m
 
 // WarnIfMachineVolumesUnavailable inspects bind mounts requested via --volume
 // and warns if the source paths are not shared with the active Podman machine.
-func WarnIfMachineVolumesUnavailable(volumeSpecs []string) {
-	if len(volumeSpecs) == 0 {
-		return
-	}
-
-	cfg := registry.PodmanConfig()
-	if cfg == nil || !cfg.MachineMode {
-		return
-	}
-
-	connectionURI := cfg.URI
-	if len(connectionURI) == 0 {
+func WarnIfMachineVolumesUnavailable(machineMode bool, connectionURI string, volumeSpecs []string) {
+	if len(volumeSpecs) == 0 || !machineMode || len(connectionURI) == 0 {
 		return
 	}
 
@@ -41,17 +29,17 @@ func WarnIfMachineVolumesUnavailable(volumeSpecs []string) {
 		return
 	}
 
-	machineConfig, provider, err := localapi.FindMachineByPort(connectionURI, parsedURI)
+	mounts, vmType, err := getMachineMountsAndVMType(connectionURI, parsedURI)
 	if err != nil {
 		logrus.Debugf("skipping machine volume check: %v", err)
 		return
 	}
-	if provider.VMType() == define.WSLVirt {
+	if vmType == define.WSLVirt {
 		// WSL mounts the drives automatically so a warning would be misleading.
 		return
 	}
 
-	missing := collectUnsharedHostPaths(volumeSpecs, machineConfig.Mounts)
+	missing := collectUnsharedHostPaths(volumeSpecs, mounts, vmType)
 	if len(missing) == 0 {
 		return
 	}
@@ -59,7 +47,7 @@ func WarnIfMachineVolumesUnavailable(volumeSpecs []string) {
 	logrus.Warnf("The following bind mount sources are not shared with the Podman machine and may not work: %s. See %s for details on configuring machine volumes.", strings.Join(missing, ", "), machineVolumesDocURL)
 }
 
-func collectUnsharedHostPaths(volumeSpecs []string, mounts []*vmconfigs.Mount) []string {
+func collectUnsharedHostPaths(volumeSpecs []string, mounts []*vmconfigs.Mount, vmType define.VMType) []string {
 	unshared := []string{}
 	seen := make(map[string]struct{})
 	for _, spec := range volumeSpecs {
@@ -67,16 +55,17 @@ func collectUnsharedHostPaths(volumeSpecs []string, mounts []*vmconfigs.Mount) [
 		if !ok {
 			continue
 		}
+		if _, found := isPathAvailableOnMachine(mounts, vmType, src); found {
+			continue
+		}
 		normalized, err := normalizeVolumeSource(src)
 		if err != nil {
 			logrus.Debugf("machine volume check: unable to normalize %q: %v", src, err)
 			continue
 		}
-		if !isPathSharedWithMachine(normalized, mounts) {
-			if _, exists := seen[normalized]; !exists {
-				unshared = append(unshared, normalized)
-				seen[normalized] = struct{}{}
-			}
+		if _, exists := seen[normalized]; !exists {
+			unshared = append(unshared, normalized)
+			seen[normalized] = struct{}{}
 		}
 	}
 	return unshared
@@ -109,30 +98,4 @@ func normalizeVolumeSource(path string) (string, error) {
 		return "", err
 	}
 	return absPath, nil
-}
-
-func isPathSharedWithMachine(path string, mounts []*vmconfigs.Mount) bool {
-	if len(mounts) == 0 {
-		return false
-	}
-	cleanPath := filepath.Clean(path)
-	for _, mount := range mounts {
-		if mount == nil || len(mount.Source) == 0 {
-			continue
-		}
-		source := filepath.Clean(mount.Source)
-		rel, err := filepath.Rel(source, cleanPath)
-		if err != nil {
-			continue
-		}
-		rel = filepath.Clean(rel)
-		if rel == "." {
-			return true
-		}
-		if strings.HasPrefix(rel, "..") {
-			continue
-		}
-		return true
-	}
-	return false
 }
