@@ -80,6 +80,20 @@ func extractBindMountSource(spec string) (string, bool) {
 	if len(src) == 0 {
 		return "", false
 	}
+	if strings.HasPrefix(src, "./") {
+		resolved, err := filepath.EvalSymlinks(src)
+		if err != nil {
+			logrus.Debugf("machine volume check: failed to resolve symlinks of %q: %v", src, err)
+		} else {
+			path, err := filepath.Abs(resolved)
+			if err != nil {
+				logrus.Debugf("machine volume check: failed to get absolute path of %q: %v", resolved, err)
+			} else {
+				src = path
+			}
+		}
+	}
+
 	if strings.HasPrefix(src, "/") || strings.HasPrefix(src, ".") || specgen.IsHostWinPath(src) {
 		return src, true
 	}
