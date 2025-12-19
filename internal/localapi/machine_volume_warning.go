@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/containers/podman/v6/pkg/domain/entities"
 	"github.com/containers/podman/v6/pkg/machine/define"
 	"github.com/containers/podman/v6/pkg/machine/vmconfigs"
 	"github.com/containers/podman/v6/pkg/specgen"
@@ -18,18 +19,18 @@ const machineVolumesDocURL = "https://docs.podman.io/en/latest/markdown/podman-m
 
 // WarnIfMachineVolumesUnavailable inspects bind mounts requested via --volume
 // and warns if the source paths are not shared with the active Podman machine.
-func WarnIfMachineVolumesUnavailable(machineMode bool, connectionURI string, volumeSpecs []string) {
-	if len(volumeSpecs) == 0 || !machineMode || len(connectionURI) == 0 {
+func WarnIfMachineVolumesUnavailable(cfg *entities.PodmanConfig, volumeSpecs []string) {
+	if cfg == nil || len(volumeSpecs) == 0 || !cfg.MachineMode {
 		return
 	}
 
-	parsedURI, err := url.Parse(connectionURI)
+	parsedURI, err := url.Parse(cfg.URI)
 	if err != nil {
-		logrus.Debugf("skipping machine volume check, invalid connection URI %q: %v", connectionURI, err)
+		logrus.Debugf("skipping machine volume check, invalid connection URI %q: %v", cfg.URI, err)
 		return
 	}
 
-	mounts, vmType, err := getMachineMountsAndVMType(connectionURI, parsedURI)
+	mounts, vmType, err := getMachineMountsAndVMType(cfg.URI, parsedURI)
 	if err != nil {
 		logrus.Debugf("skipping machine volume check: %v", err)
 		return

@@ -206,13 +206,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := specgenutil.FillOutSpecGen(s, &cliVals, args); err != nil {
 		return err
 	}
-	cfg := registry.PodmanConfig()
-	var connectionURI string
-	machineMode := cfg != nil && cfg.MachineMode
-	if cfg != nil {
-		connectionURI = cfg.URI
-	}
-	localapi.WarnIfMachineVolumesUnavailable(machineMode, connectionURI, cliVals.Volume)
+	localapi.WarnIfMachineVolumesUnavailable(registry.PodmanConfig(), cliVals.Volume)
 	s.RawImageName = rawImageName
 
 	// Include the command used to create the container.
