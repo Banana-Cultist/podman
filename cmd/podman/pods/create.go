@@ -18,6 +18,7 @@ import (
 	"go.podman.io/podman/v6/cmd/podman/parse"
 	"go.podman.io/podman/v6/cmd/podman/registry"
 	"go.podman.io/podman/v6/cmd/podman/utils"
+	"go.podman.io/podman/v6/internal/localapi"
 	"go.podman.io/podman/v6/libpod/define"
 	"go.podman.io/podman/v6/pkg/domain/entities"
 	"go.podman.io/podman/v6/pkg/specgen"
@@ -197,6 +198,8 @@ func create(cmd *cobra.Command, args []string) error {
 		}
 		createOptions.Name = podName
 	}
+
+	localapi.WarnIfMachineVolumesUnavailable(registry.PodmanConfig(), infraOptions.Volume, infraOptions.Mount)
 
 	if len(createOptions.Net.PublishPorts) > 0 {
 		if !createOptions.Infra {

@@ -13,6 +13,7 @@ import (
 	"go.podman.io/podman/v6/cmd/podman/common"
 	"go.podman.io/podman/v6/cmd/podman/registry"
 	"go.podman.io/podman/v6/cmd/podman/utils"
+	"go.podman.io/podman/v6/internal/localapi"
 	"go.podman.io/podman/v6/libpod/define"
 	"go.podman.io/podman/v6/pkg/domain/entities"
 	"go.podman.io/podman/v6/pkg/rootless"
@@ -203,6 +204,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := specgenutil.FillOutSpecGen(s, &cliVals, args); err != nil {
 		return err
 	}
+	localapi.WarnIfMachineVolumesUnavailable(registry.PodmanConfig(), cliVals.Volume, cliVals.Mount)
 	s.RawImageName = rawImageName
 
 	// Include the command used to create the container.
